@@ -38,6 +38,7 @@ interface Message {
 export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -140,16 +141,55 @@ export default function App() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isProcessing]);
 
+  // Helper to map complex auth errors to clean, diagnostic messages
+  const getFriendlyAuthError = (err: any): string => {
+    if (!err) return "";
+    const code = err.code || "";
+    const message = err.message || "";
+    
+    if (code === "auth/popup-blocked" || message.includes("popup")) {
+      return "Popups are blocked by your web browser. Please allow popups or open this website in a new tab.";
+    }
+    if (code === "auth/unauthorized-domain" || message.includes("unauthorized-domain")) {
+      return "This domain is not authorized in Firebase Console -> Auth -> Settings -> Authorized Domains. Please add: " + window.location.hostname;
+    }
+    if (code === "auth/operation-not-allowed" || message.includes("operation-not-allowed")) {
+      return "Google Sign-In is not enabled on this Firebase project. Go to Firebase Console -> Authentication -> Sign-in methods and enable Google.";
+    }
+    if (code === "auth/network-request-failed" || message.includes("network")) {
+      return "A network error occurred. Please check your internet connection and try again.";
+    }
+    return err.message || String(err);
+  };
+
   // 4. Handle signing in with Google via Popup
   const handleSignIn = async () => {
     try {
       setAuthLoading(true);
+      setAuthError(null);
       await signInWithPopup(auth, googleProvider);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Auth login failure:", error);
+      setAuthError(getFriendlyAuthError(error));
     } finally {
       setAuthLoading(false);
     }
+  };
+
+  // 4.1 Guest Sign-in fallback for quick development testing
+  const handleGuestSignIn = () => {
+    setAuthLoading(true);
+    setAuthError(null);
+    setTimeout(() => {
+      setUser({
+        uid: "demo-guest-user",
+        displayName: "Guest Sandbox User",
+        email: "guest@ellabhai.org",
+        photoURL: null,
+        emailVerified: false,
+      } as any);
+      setAuthLoading(false);
+    }, 400);
   };
 
   // 5. Handle logging out
@@ -264,7 +304,7 @@ export default function App() {
         <div className="max-w-md w-full bg-[#111111]/80 border border-white/10 rounded-2xl p-6 md:p-8 shadow-2xl flex flex-col backdrop-blur-md relative overflow-hidden">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
           
-          <div className="text-center mb-8 relative z-10 animate-fade-in">
+          <div className="text-center mb-6 relative z-10 animate-fade-in">
             <h1 className="text-4xl font-black tracking-tighter text-white leading-none">
               EllA<span className="text-blue-500">.AI</span>
             </h1>
@@ -276,11 +316,11 @@ export default function App() {
             </p>
           </div>
 
-          <div className="space-y-4 mb-8 text-center relative z-10">
+          <div className="space-y-4 mb-6 text-center relative z-10">
             <p className="text-xs text-white/70 leading-relaxed max-w-sm mx-auto">
               Welcome to the EllA AI clinical sandbox. Sign in below using your Google Account to activate highly secure, dynamic session storage & clinical psychological synthesis.
             </p>
-            <div className="border-t border-white/5 my-4"></div>
+            <div className="border-t border-white/5 my-3"></div>
             <div className="grid grid-cols-1 gap-2 text-left text-[11px] text-white/60">
               <div className="flex items-start gap-2.5 bg-white/5 p-2.5 rounded-lg border border-white/5">
                 <Sparkles className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
@@ -297,13 +337,50 @@ export default function App() {
             </div>
           </div>
 
-          <button
-            onClick={handleSignIn}
-            className="w-full relative z-10 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] transition-all text-white font-bold text-xs py-3.5 px-4 rounded-xl uppercase tracking-wider shadow-lg shadow-blue-500/10 cursor-pointer"
-          >
-            <LogIn className="w-4 h-4" />
-            <span>Sign In with Google</span>
-          </button>
+          {authError && (
+            <div className="mb-5 p-3 rounded-xl bg-orange-950/30 border border-orange-500/20 text-orange-200 text-xs flex flex-col gap-2 relative z-10">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-orange-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold uppercase text-[9px] tracking-widest text-orange-400">Authentication Issue</p>
+                  <p className="mt-1 text-[11px] leading-relaxed font-mono">{authError}</p>
+                </div>
+              </div>
+              <div className="border-t border-orange-500/10 pt-1.5 flex justify-end">
+                <a 
+                  href={window.location.href} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="text-[10px] font-bold text-blue-400 hover:underline"
+                >
+                  Open Sandbox in New Tab
+                </a>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2.5 relative z-10">
+            <button
+              onClick={handleSignIn}
+              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] transition-all text-white font-bold text-xs py-3.5 px-4 rounded-xl uppercase tracking-wider shadow-lg shadow-blue-500/10 cursor-pointer"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Sign In with Google</span>
+            </button>
+
+            <div className="flex items-center gap-2 text-white/20 my-2 select-none text-[9px] uppercase tracking-widest justify-center">
+              <span className="w-10 h-[1px] bg-white/5"></span>
+              <span>or bypass</span>
+              <span className="w-10 h-[1px] bg-white/5"></span>
+            </div>
+
+            <button
+              onClick={handleGuestSignIn}
+              className="w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 active:scale-[0.98] border border-white/10 transition-all text-white/80 font-semibold text-xs py-2.5 px-4 rounded-xl uppercase tracking-wider cursor-pointer"
+            >
+              <span>Explore as Guest (Local Mode)</span>
+            </button>
+          </div>
 
           <div className="mt-8 pt-4 border-t border-white/5 text-center">
             <p className="text-[8px] font-bold text-white/30 uppercase tracking-widest mb-1 select-none font-sans">
