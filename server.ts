@@ -41,7 +41,7 @@ async function startServer() {
       }
 
       // Check for Gemini API key
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY || "AQ.Ab8RN6IRNFmv9K9-KkN7gytLIoMjkiIbFkfsK906c699450GiA";
       if (!apiKey) {
         return res.status(500).json({
           error: "GEMINI_API_KEY is not defined. Please add it to your server secrets.",
