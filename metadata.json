@@ -1,0 +1,6 @@
+{
+  "name": "EllA AI - The Psychologist",
+  "description": "An academic and clinical psychologist AI designed to guide self-reflection, relational analysis, attachment insights, and CBT counseling.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

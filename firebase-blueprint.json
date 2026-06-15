@@ -1,0 +1,48 @@
+{
+  "entities": {
+    "Message": {
+      "title": "Message",
+      "description": "A message exchange between the client and the therapist",
+      "type": "object",
+      "properties": {
+        "sender": {
+          "type": "string",
+          "enum": ["user", "model"]
+        },
+        "text": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      },
+      "required": ["sender", "text", "timestamp"]
+    },
+    "UserChat": {
+      "title": "UserChat",
+      "description": "The complete chat history document for a specific user ID",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/entities/Message"
+          }
+        }
+      },
+      "required": ["userId", "updatedAt", "messages"]
+    }
+  },
+  "firestore": {
+    "chats/{userId}": {
+      "schema": "UserChat",
+      "description": "Therapy sessions grouped under the patient's User ID"
+    }
+  }
+}

@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Global safety net - Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper to check valid document IDs
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Helper to check if user is signed in and email verified
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    // Helper to validate a specific chat message shape
+    function isValidMessage(msg) {
+      return msg.sender is string 
+        && (msg.sender == 'user' || msg.sender == 'model')
+        && msg.text is string 
+        && msg.text.size() <= 10000
+        && msg.timestamp is string;
+    }
+
+    // Helper to validate a complete user chat document structure
+    function isValidChatDoc(data) {
+      return data.keys().hasAll(['userId', 'updatedAt', 'messages'])
+        && data.keys().size() == 3
+        && data.userId is string
+        && data.userId.size() <= 128
+        && data.updatedAt is string
+        && data.updatedAt.size() <= 128
+        && data.messages is list
+        && data.messages.size() <= 500; // Limit conversation to 500 total messages
+    }
+
+    // 2. Chats Collection Match Block
+    match /chats/{userId} {
+      // Users can only view or manage their own conversation documents
+      allow read, get: if isSignedIn() && request.auth.uid == userId && isValidId(userId);
+      
+      // On create or update, validate permissions, verify matching userId, and validate fields
+      allow create: if isSignedIn() 
+        && request.auth.uid == userId 
+        && isValidId(userId)
+        && isValidChatDoc(request.resource.data)
+        && request.resource.data.userId == request.auth.uid;
+
+      allow update: if isSignedIn() 
+        && request.auth.uid == userId 
+        && isValidId(userId)
+        && isValidChatDoc(request.resource.data)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId; // Immutable ownership
+
+      allow delete: if isSignedIn() 
+        && request.auth.uid == userId 
+        && isValidId(userId);
+    }
+  }
+}
