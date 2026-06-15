@@ -3,26 +3,14 @@ import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
-import { initializeApp, getApps } from "firebase-admin/app";
-import { getFirestore, Firestore } from "firebase-admin/firestore";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-// Attempt to initialize Firebase Admin SDK
-let firestoreDb: Firestore | null = null;
-try {
-  if (getApps().length === 0) {
-    initializeApp();
-  }
-  firestoreDb = getFirestore();
-  console.log("Firebase Admin Firestore initialized successfully.");
-} catch (error) {
-  console.warn(
-    "Firebase Admin could not be initialized automatically. Operating in resilient/mock-free hybrid mode.",
-    error
-  );
-}
+// Disable server-side Firebase Admin Firestore to prevent permission errors in sandboxed containers.
+// The client-side application manages chat persistence securely and directly using the client SDK.
+const firestoreDb = null;
+
 
 async function startServer() {
   const app = express();
@@ -41,7 +29,7 @@ async function startServer() {
       }
 
       // Check for Gemini API key
-      const apiKey = process.env.GEMINI_API_KEY || "AQ.Ab8RN6IRNFmv9K9-KkN7gytLIoMjkiIbFkfsK906c699450GiA";
+      const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
         return res.status(500).json({
           error: "GEMINI_API_KEY is not defined. Please add it to your server secrets.",
