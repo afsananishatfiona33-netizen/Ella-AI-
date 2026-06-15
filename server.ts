@@ -182,6 +182,14 @@ async function startServer() {
   app.use(express.json());
 
   // API Route: Send message to Psychologist
+  app.get("/api/debug-env", (req, res) => {
+    res.json({
+      keys: Object.keys(process.env),
+      hasGeminiKey: !!process.env.GEMINI_API_KEY,
+      nodeEnv: process.env.NODE_ENV || "not set"
+    });
+  });
+
   app.post("/api/chat", async (req, res) => {
     try {
       const { message, userId, history } = req.body;
@@ -232,7 +240,7 @@ async function startServer() {
         const mapped = rawHistory.map((msg: any) => ({
           role: msg.sender === "user" ? "user" : "model",
           text: (msg.text || "").trim(),
-        })).filter((msg: any) => msg.text.length > 0);
+        })).filter((msg: any) => msg.text.length > 0 && !msg.text.startsWith("[Consultation Interrupted]"));
 
         // Reconstruct a valid alternating chain
         let expectingRole: "user" | "model" = "user";
