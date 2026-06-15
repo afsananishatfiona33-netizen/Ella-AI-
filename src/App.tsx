@@ -25,6 +25,8 @@ import {
   RefreshCw,
   BookOpen,
   AlertTriangle,
+  Menu,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -45,6 +47,7 @@ export default function App() {
   const [dbSyncStatus, setDbSyncStatus] = useState<"synced" | "pending" | "offline" | "error">("offline");
   const [syncErrorMessage, setSyncErrorMessage] = useState("");
   const [activeTab, setActiveTab] = useState<"chat" | "frameworks" | "crisis">("chat");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -399,18 +402,39 @@ export default function App() {
   return (
     <div className="flex flex-col md:flex-row w-full h-screen bg-[#0A0A0A] text-[#E0E0E0] overflow-hidden font-sans select-none">
       
+      {/* Mobile Sidebar Backdrop */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar Navigation */}
-      <aside className="w-full md:w-64 flex-shrink-0 border-b md:border-b-0 md:border-r border-white/10 flex flex-col p-4 md:p-5 bg-[#0A0A0A] overflow-hidden">
-        <div className="mb-4 md:mb-5">
-          <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-white leading-none">
-            EllA<span className="text-blue-500">.AI</span>
-          </h1>
-          <p className="mt-1.5 text-[9px] font-medium uppercase tracking-[0.15em] text-white/40 italic font-serif">
-            Academic Clinical Synthesis
-          </p>
-          <p className="mt-1 text-[8px] font-sans font-semibold uppercase tracking-widest text-blue-400">
-            Developed by Aswad for mental welfare
-          </p>
+      <aside className={`
+        fixed inset-y-0 left-0 z-50 w-72 bg-[#0A0A0A] border-r border-white/10 flex flex-col p-5 transition-transform duration-300 ease-in-out
+        ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
+        md:relative md:translate-x-0 md:w-64 md:border-b-0 md:p-5 md:flex md:bg-[#0A0A0A] md:z-auto
+      `}>
+        <div className="flex items-start justify-between mb-4 md:mb-5">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tighter text-white leading-none">
+              EllA<span className="text-blue-500">.AI</span>
+            </h1>
+            <p className="mt-1.5 text-[9px] font-medium uppercase tracking-[0.15em] text-white/40 italic font-serif">
+              Academic Clinical Synthesis
+            </p>
+            <p className="mt-1 text-[8px] font-sans font-semibold uppercase tracking-widest text-blue-400">
+              Developed by Aswad for mental welfare
+            </p>
+          </div>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="md:hidden p-1.5 rounded-lg border border-white/10 hover:bg-white/5 text-white/60 hover:text-white cursor-pointer"
+            aria-label="Close Sidebar"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Deck Navigation tabs */}
@@ -465,7 +489,10 @@ export default function App() {
                 {starters.map((starter, i) => (
                   <button
                     key={i}
-                    onClick={() => setInputText(starter.text)}
+                    onClick={() => {
+                      setInputText(starter.text);
+                      setIsSidebarOpen(false);
+                    }}
                     className="w-full text-left p-3 bg-[#111] hover:bg-[#161616] border border-white/5 hover:border-white/20 rounded-xl transition-all duration-200 cursor-pointer"
                   >
                     <p className="text-[9px] font-mono font-bold tracking-widest text-blue-400 uppercase mb-0.5">
@@ -616,14 +643,23 @@ export default function App() {
         
         {/* Chat Header */}
         <header className="h-14 flex-shrink-0 flex items-center justify-between px-5 md:px-6 border-b border-white/5 bg-[#0A0A0A] z-10">
-          <div className="flex items-center gap-2">
-            <div className="relative flex h-1.5 w-1.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]"></div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="md:hidden p-1.5 -ml-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white transition-colors cursor-pointer"
+              title="Open Sidebar"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-2">
+              <div className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]"></div>
+              </div>
+              <h2 className="text-xs font-normal text-white/80 tracking-tight">
+                Active Protocol: <span className="font-semibold text-white">Psychodynamic Evaluation</span>
+              </h2>
             </div>
-            <h2 className="text-xs font-normal text-white/80 tracking-tight">
-              Active Protocol: <span className="font-semibold text-white">Psychodynamic Evaluation</span>
-            </h2>
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden md:inline text-[9px] font-mono text-white/30 uppercase tracking-wider">
