@@ -190,16 +190,13 @@ async function startServer() {
         return res.status(400).json({ error: "Message is required." });
       }
 
-      // Dynamically resolve API key (either from process.env or our safe obfuscated fallback)
-      let apiKey = process.env.GEMINI_API_KEY;
+      // Access Gemini API key strictly from process.env.
+      // This is injected automatically by AI Studio at runtime from secrets.
+      const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        const part1 = "AQ.Ab8RN6";
-        const part2 = "IRNFmv9K9";
-        const part3 = "-KkN7gytL";
-        const part4 = "IoMjkiIbF";
-        const part5 = "kfsK906c6";
-        const part6 = "99450GiA";
-        apiKey = [part1, part2, part3, part4, part5, part6].join("");
+        return res.status(500).json({
+          error: "GEMINI_API_KEY is not defined. Please define it in your AI Studio secrets panel.",
+        });
       }
 
       // Read System Prompt from academic-psychologist.md
@@ -216,7 +213,7 @@ async function startServer() {
       const isoNow = new Date().toISOString();
 
       try {
-        // Initialize the official @google/genai SDK
+        // Initialize the official @google/genai SDK natively
         const ai = new GoogleGenAI({
           apiKey: apiKey,
           httpOptions: {
@@ -226,45 +223,73 @@ async function startServer() {
           },
         });
 
-        // Prepare contents list
-        let formattedHistory: any[] = [];
+        // Clean & format conversational turn sequence to comply with GenAI schema:
+        // Must start with user, partition roles cleanly, and strictly alternate roles.
+        const cleanList: any[] = [];
+        
+        // Convert input history to a simple array of role and text
+        const rawHistory = Array.isArray(history) ? history : [];
+        const mapped = rawHistory.map((msg: any) => ({
+          role: msg.sender === "user" ? "user" : "model",
+          text: (msg.text || "").trim(),
+        })).filter((msg: any) => msg.text.length > 0);
 
-        // 1) First preference: Use client-passed historical message log
-        if (Array.isArray(history) && history.length > 0) {
-          formattedHistory = history.map((msg: any) => ({
-            role: msg.sender === "user" ? "user" : "model",
-            parts: [{ text: msg.text }],
-          }));
-        }
-        // 2) Second preference: If userId is provided and we can read from Firestore
-        else if (userId && firestoreDb) {
-          try {
-            const docRef = (firestoreDb as any).collection("chats").doc(userId);
-            const snap = await docRef.get();
-            if (snap.exists) {
-              const data = snap.data();
-              if (data && Array.isArray(data.messages)) {
-                formattedHistory = data.messages.map((msg: any) => ({
-                  role: msg.sender === "user" ? "user" : "model",
-                  parts: [{ text: msg.text }],
-                }));
-              }
+        // Reconstruct a valid alternating chain
+        let expectingRole: "user" | "model" = "user";
+        for (const turn of mapped) {
+          if (turn.role === expectingRole) {
+            cleanList.push({
+              role: turn.role,
+              parts: [{ text: turn.text }],
+            });
+            expectingRole = expectingRole === "user" ? "model" : "user";
+          } else {
+            // Group consecutive same-role messages together to satisfy alternating constraint
+            const lastIndex = cleanList.length - 1;
+            if (lastIndex >= 0 && cleanList[lastIndex].role === turn.role) {
+              cleanList[lastIndex].parts[0].text += "\n" + turn.text;
+            } else if (turn.role === "user") {
+              // Reset expectation to start clean user turn if out-of-order user message is found
+              cleanList.push({
+                role: "user",
+                parts: [{ text: turn.text }],
+              });
+              expectingRole = "model";
             }
-          } catch (dbErr) {
-            console.warn("Could not read chat history from Firestore:", dbErr);
           }
         }
 
-        // Append current message
-        formattedHistory.push({
-          role: "user",
-          parts: [{ text: message.trim() }],
-        });
+        // Ensure the sequence strictly starts with "user". Strip early model greeting components
+        while (cleanList.length > 0 && cleanList[0].role !== "user") {
+          cleanList.shift();
+        }
 
-        // Query Gemini 3.5-flash
+        // If the current message wasn't already included, append it as the concluding user turn
+        const lastTurn = cleanList[cleanList.length - 1];
+        if (!lastTurn || lastTurn.role !== "user" || !lastTurn.parts[0].text.includes(message.trim())) {
+          if (lastTurn && lastTurn.role === "user") {
+            // Append safely to current user block if sequence is trailing on user
+            lastTurn.parts[0].text = message.trim();
+          } else {
+            cleanList.push({
+              role: "user",
+              parts: [{ text: message.trim() }],
+            });
+          }
+        }
+
+        // Check if we have a valid content sequence to send to Gemini
+        if (cleanList.length === 0) {
+          cleanList.push({
+            role: "user",
+            parts: [{ text: message.trim() }],
+          });
+        }
+
+        // Query Gemini 3.5-flash with formatted history contents
         const response = await ai.models.generateContent({
           model: "gemini-3.5-flash",
-          contents: formattedHistory,
+          contents: cleanList,
           config: {
             systemInstruction,
             temperature: 0.8,
@@ -317,12 +342,9 @@ async function startServer() {
         });
 
       } catch (geminiError: any) {
-        console.warn("Gemini execution failed, falling back to smart simulation:", geminiError);
-        const replyText = getClinicalFallbackResponse(message, history || []);
-        return res.json({
-          reply: replyText,
-          timestamp: isoNow,
-        });
+        console.error("Gemini API call crashed, logging details:", geminiError);
+        // Bubble up error to frontend for helpful developer guidance
+        throw geminiError;
       }
 
     } catch (error: any) {
